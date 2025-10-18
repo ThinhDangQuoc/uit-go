@@ -7,7 +7,11 @@ COPY package*.json ./
 
 RUN npm install
 
-COPY . .
+# Copy source code
+COPY src ./src
+
+# Copy environment file if needed
+COPY .env ./
 
 EXPOSE 8081
 
