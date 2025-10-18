@@ -1,0 +1,108 @@
+version: "3.9"
+
+services:
+  # --- USER SERVICE ---
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    env_file:
+      - ./user-service/.env
+    ports:
+      - "8081:8081"
+    depends_on:
+      - user-db
+    networks:
+      - uitgo-net
+
+  user-db:
+    image: postgres:15
+    container_name: user-db
+    restart: always
+    environment:
+      POSTGRES_USER: user_admin
+      POSTGRES_PASSWORD: user_password
+      POSTGRES_DB: user_db
+    ports:
+      - "5433:5432"
+    networks:
+      - uitgo-net
+    volumes:
+      - user-data:/var/lib/postgresql/data
+
+  # --- DRIVER SERVICE ---
+  driver-service:
+    build: ./driver-service
+    container_name: driver-service
+    env_file:
+      - ./driver-service/.env
+    ports:
+      - "8082:8082"
+    depends_on:
+      - driver-db
+      - driver-redis
+    networks:
+      - uitgo-net
+
+  driver-db:
+    image: postgres:15
+    container_name: driver-db
+    restart: always
+    environment:
+      POSTGRES_USER: driver_admin
+      POSTGRES_PASSWORD: driver_password
+      POSTGRES_DB: driver_db
+    ports:
+      - "5434:5432"
+    networks:
+      - uitgo-net
+    volumes:
+      - driver-data:/var/lib/postgresql/data
+
+  driver-redis:
+    image: redis:7
+    container_name: driver-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - uitgo-net
+
+  # --- TRIP SERVICE ---
+  trip-service:
+    build: ./trip-service
+    container_name: trip-service
+    env_file:
+      - ./trip-service/.env
+    ports:
+      - "8083:8083"
+    depends_on:
+      - trip-db
+      - user-service
+      - driver-service
+    networks:
+      - uitgo-net
+
+  trip-db:
+    image: postgres:15
+    container_name: trip-db
+    restart: always
+    environment:
+      POSTGRES_USER: trip_admin
+      POSTGRES_PASSWORD: trip_password
+      POSTGRES_DB: trip_db
+    ports:
+      - "5435:5432"
+    networks:
+      - uitgo-net
+    volumes:
+      - trip-data:/var/lib/postgresql/data
+
+# --- NETWORKS & VOLUMES ---
+networks:
+  uitgo-net:
+    driver: bridge
+
+volumes:
+  user-data:
+  driver-data:
+  trip-data:
