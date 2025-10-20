@@ -1,4 +1,4 @@
-import { pool } from "../db.js";
+import pool from "../db/db.js";
 
 export async function createUser(email, passwordHash, role) {
   const res = await pool.query(

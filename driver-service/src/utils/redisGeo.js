@@ -1,4 +1,4 @@
-import { redis } from "../db.js";
+import { redis } from "../db/db.js";
 
 export async function updateDriverLocation(driverId, lat, lng) {
   await redis.geoadd("drivers:locations", lng, lat, driverId);

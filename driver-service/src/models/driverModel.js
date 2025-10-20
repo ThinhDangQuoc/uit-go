@@ -1,4 +1,4 @@
-import { pool } from "../db.js";
+import pool from "../db/db.js";
 
 export async function createDriver(name, vehicle, licensePlate) {
   const res = await pool.query(

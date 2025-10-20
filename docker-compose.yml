@@ -19,9 +19,9 @@ services:
     container_name: user-db
     restart: always
     environment:
-      POSTGRES_USER: user_admin
-      POSTGRES_PASSWORD: user_password
-      POSTGRES_DB: user_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5433:5432"
     networks:
@@ -48,9 +48,9 @@ services:
     container_name: driver-db
     restart: always
     environment:
-      POSTGRES_USER: driver_admin
-      POSTGRES_PASSWORD: driver_password
-      POSTGRES_DB: driver_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5434:5432"
     networks:
@@ -87,9 +87,9 @@ services:
     container_name: trip-db
     restart: always
     environment:
-      POSTGRES_USER: trip_admin
-      POSTGRES_PASSWORD: trip_password
-      POSTGRES_DB: trip_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5435:5432"
     networks:

@@ -1,4 +1,4 @@
-import { pool } from "../db.js";
+import pool from "../db/db.js";
 
 export async function createTrip(passengerId, pickup, destination, fare, status, driverId = null) {
   const res = await pool.query(
