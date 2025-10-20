@@ -6,7 +6,7 @@ services:
     build: ./user-service
     container_name: user-service
     env_file:
-      - ./user-service/.env
+      - .env
     ports:
       - "8081:8081"
     depends_on:
@@ -34,7 +34,7 @@ services:
     build: ./driver-service
     container_name: driver-service
     env_file:
-      - ./driver-service/.env
+      - .env
     ports:
       - "8082:8082"
     depends_on:
@@ -72,7 +72,7 @@ services:
     build: ./trip-service
     container_name: trip-service
     env_file:
-      - ./trip-service/.env
+      - .env
     ports:
       - "8083:8083"
     depends_on:

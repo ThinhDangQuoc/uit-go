@@ -13,9 +13,6 @@ RUN npm install
 # Copy source code
 COPY src ./src
 
-# Copy environment file if needed
-COPY .env ./
-
 # Expose port
 EXPOSE 8082
 
