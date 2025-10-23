@@ -40,3 +40,26 @@ export async function login(req, res) {
 
   res.json({ token });
 }
+export async function getProfile(req, res) {
+  try {
+    // Giả sử middleware auth đã thêm userId hoặc user info vào req.user
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await findUserByEmail(req.user.email);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+  } catch (err) {
+    console.error("getProfile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+}
