@@ -9,7 +9,9 @@ app.use(express.json());
 app.use("/api", userRoutes);
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, async () => {
-    await initDB();
-    console.log(`UserService running on ${PORT}`);
+app.listen(PORT, () => {
+  initDB()
+    .then(() => console.log("✅ Database ready"))
+    .catch((err) => console.error("❌ DB init failed:", err));
+  console.log(`UserService running on port ${PORT}`);
 });
