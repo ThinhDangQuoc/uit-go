@@ -1,7 +1,23 @@
-version: "3.9"
-
 services:
   # --- USER SERVICE ---
+  user-db:
+    image: postgres:15
+    container_name: user-db
+    env_file:
+      - ./user-service/.env
+    restart: always
+    ports:
+      - "5433:5432"
+    networks:
+      - uitgo-net
+    volumes:
+      - user-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   user-service:
     build: ./user-service
     container_name: user-service
@@ -10,53 +26,29 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      - user-db
+      user-db:
+        condition: service_healthy
     networks:
       - uitgo-net
-
-  user-db:
-    image: postgres:15
-    container_name: user-db
-    restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5433:5432"
-    networks:
-      - uitgo-net
-    volumes:
-      - user-data:/var/lib/postgresql/data
 
   # --- DRIVER SERVICE ---
-  driver-service:
-    build: ./driver-service
-    container_name: driver-service
-    env_file:
-      - ./driver-service/.env
-    ports:
-      - "8082:8082"
-    depends_on:
-      - driver-db
-      - driver-redis
-    networks:
-      - uitgo-net
-
   driver-db:
     image: postgres:15
     container_name: driver-db
+    env_file:
+      - ./driver-service/.env
     restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5434:5432"
     networks:
       - uitgo-net
     volumes:
       - driver-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   driver-redis:
     image: redis:7
@@ -67,7 +59,40 @@ services:
     networks:
       - uitgo-net
 
+  driver-service:
+    build: ./driver-service
+    container_name: driver-service
+    env_file:
+      - ./driver-service/.env
+    ports:
+      - "8082:8082"
+    depends_on:
+      driver-db:
+        condition: service_healthy
+      driver-redis:
+        condition: service_started
+    networks:
+      - uitgo-net
+
   # --- TRIP SERVICE ---
+  trip-db:
+    image: postgres:15
+    container_name: trip-db
+    env_file:
+      - ./trip-service/.env
+    restart: always
+    ports:
+      - "5435:5432"
+    networks:
+      - uitgo-net
+    volumes:
+      - trip-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   trip-service:
     build: ./trip-service
     container_name: trip-service
@@ -76,26 +101,14 @@ services:
     ports:
       - "8083:8083"
     depends_on:
-      - trip-db
-      - user-service
-      - driver-service
+      trip-db:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      driver-service:
+        condition: service_started
     networks:
       - uitgo-net
-
-  trip-db:
-    image: postgres:15
-    container_name: trip-db
-    restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5435:5432"
-    networks:
-      - uitgo-net
-    volumes:
-      - trip-data:/var/lib/postgresql/data
 
 # --- NETWORKS & VOLUMES ---
 networks:
