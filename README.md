@@ -29,7 +29,7 @@ The service reads configuration from `.env` file:
 | `DB_NAME`     | Database name                         | `userdb`      |
 | `DB_HOST`     | Hostname (use service name in Docker) | `user-db`     |
 | `DB_PORT`     | Database port                         | `5432`        |
-| `JWT_SECRET`  | Secret key for JWT tokens             | `mysecretkey` |
+| `JWT_SECRET`  | Secret key for JWT tokens             | `supersecretuserkey` |
 
 ---
 
