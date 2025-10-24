@@ -8,17 +8,18 @@ export async function register(req, res) {
   try {
     const { email, password, role } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ message: "Email and password are required" });
-    }
 
     const existing = await findUserByEmail(email);
-    if (existing) {
+    if (existing)
       return res.status(400).json({ message: "Email already used" });
-    }
+
+    const validRoles = ["passenger", "driver"];
+    const userRole = validRoles.includes(role) ? role : "passenger";
 
     const hash = await bcrypt.hash(password, 10);
-    const user = await createUser(email, hash, role || "passenger");
+    const user = await createUser(email, hash, userRole);
 
     res.status(201).json({
       id: user.id,
@@ -49,7 +50,10 @@ export async function login(req, res) {
       { expiresIn: "1d" }
     );
 
-    res.json({ token });
+    res.json({
+      token,
+      user: { id: user.id, email: user.email, role: user.role },
+    });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Internal server error" });
