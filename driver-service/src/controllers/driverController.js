@@ -1,57 +1,85 @@
-import {
-  createDriver,
-  getDriverById,
-  updateStatus,
-} from "../models/driverModel.js";
-import { updateDriverLocation, findNearbyDrivers } from "../utils/redisGeo.js";
+import * as driverModel from "../models/driverModel.js";
 
-export async function registerDriver(req, res) {
+export async function createDriver(req, res) {
   try {
-    const { name, vehicle, licensePlate } = req.body;
-    if (!name || !vehicle || !licensePlate)
-      return res.status(400).json({ message: "Missing fields" });
-
-    const driver = await createDriver(name, vehicle, licensePlate);
+    const { userId, carModel, licensePlate } = req.body;
+    const driver = await driverModel.createDriver(userId, carModel, licensePlate);
     res.status(201).json(driver);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
 
-export async function updateDriverStatus(req, res) {
+export async function getDriver(req, res) {
+  try {
+    const { id } = req.params;
+    const driver = await driverModel.getDriverById(id);
+    if (!driver) {
+      return res.status(404).json({ error: "Driver not found" });
+    }
+    res.json(driver);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function updateStatus(req, res) {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    if (!["online", "offline"].includes(status))
-      return res.status(400).json({ message: "Invalid status" });
-
-    const driver = await updateStatus(id, status);
-    res.json(driver);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    if (!["online", "offline"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    const driver = await driverModel.updateDriverStatus(id, status);
+    if (!driver) {
+      return res.status(404).json({ error: "Driver not found" });
+    }
+    res.json({ status: driver.status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
 
 export async function updateLocation(req, res) {
   try {
     const { id } = req.params;
-    const { lat, lng } = req.body;
-    if (!lat || !lng)
-      return res.status(400).json({ message: "lat/lng required" });
-
-    await updateDriverLocation(id, lat, lng);
-    res.json({ message: "Driver location updated" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    const { latitude, longitude } = req.body;
+    if (!latitude || !longitude) {
+      return res.status(400).json({ error: "Latitude and longitude required" });
+    }
+    const driver = await driverModel.updateDriverLocation(id, latitude, longitude);
+    if (!driver) {
+      return res.status(404).json({ error: "Driver not found" });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
 
-export async function searchNearby(req, res) {
+export async function searchDrivers(req, res) {
   try {
-    const { lat, lng, radius } = req.query;
-    const drivers = await findNearbyDrivers(lat, lng, radius || 5);
-    res.json({ count: drivers.length, drivers });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    const { lat, lng, radius = 5 } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ error: "Latitude and longitude required" });
+    }
+    const drivers = await driverModel.searchNearbyDrivers(
+      parseFloat(lat),
+      parseFloat(lng),
+      parseFloat(radius)
+    );
+    res.json(drivers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getDriverTrips(req, res) {
+  try {
+    const { id } = req.params;
+    const trips = await driverModel.getDriverTrips(id);
+    res.json(trips);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
