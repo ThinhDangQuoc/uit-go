@@ -55,7 +55,7 @@ export async function login(req, res) {
     if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role || 'unknown'},
       JWT_SECRET,
       { expiresIn: "1d" }
     );

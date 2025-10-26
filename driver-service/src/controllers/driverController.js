@@ -8,7 +8,7 @@ export async function updateLocation(req, res) {
   if (req.user.role !== 'driver' || req.user.id != id) {
     return res.status(403).json({ message: 'Unauthorized' });
   }
-
+  
   if (!lat || !lng) {
     return res.status(400).json({ message: 'Missing location coordinates' });
   }
@@ -46,16 +46,14 @@ export async function searchNearbyDrivers(req, res) {
   }
 
   try {
-    // Search within radius (unit: KM)
-    const nearby = await redis.geosearch(
-      KEYS.DRIVERS_LOCATIONS,
-      'FROMLONGLAT',
-      lng,
-      lat,
-      'BYRADIUS',
-      radius,
-      'KM',
-      'WITHCOORD'
+    // Redis GEO radius search
+    const nearby = await redis.georadius(
+      KEYS.DRIVERS_LOCATIONS, // key
+      lng,                    // longitude
+      lat,                    // latitude
+      radius,                 // radius value
+      'km',                   // unit
+      'WITHCOORD'             // include coordinates
     );
 
     // Map to a cleaner format
