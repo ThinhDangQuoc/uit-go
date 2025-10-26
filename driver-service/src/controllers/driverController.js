@@ -1,85 +1,123 @@
-import * as driverModel from "../models/driverModel.js";
+import redis, { KEYS } from '../utils/redis.js';
 
-export async function createDriver(req, res) {
+export async function updateLocation(req, res) {
+  const { id } = req.params;
+  const { lat, lng } = req.body;
+
+  // Verify driver owns this location update
+  if (req.user.role !== 'driver' || req.user.id != id) {
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+
+  if (!lat || !lng) {
+    return res.status(400).json({ message: 'Missing location coordinates' });
+  }
+
   try {
-    const { userId, carModel, licensePlate } = req.body;
-    const driver = await driverModel.createDriver(userId, carModel, licensePlate);
-    res.status(201).json(driver);
+    // Store in Redis geospatial
+    await redis.geoadd(KEYS.DRIVERS_LOCATIONS, lng, lat, id);
+    res.json({ message: 'Location updated' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Update location error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
 
-export async function getDriver(req, res) {
+export async function getLocation(req, res) {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    const driver = await driverModel.getDriverById(id);
-    if (!driver) {
-      return res.status(404).json({ error: "Driver not found" });
+    const position = await redis.geopos(KEYS.DRIVERS_LOCATIONS, id);
+    if (!position[0]) {
+      return res.status(404).json({ message: 'Driver location not found' });
     }
-    res.json(driver);
+    res.json({ lat: position[0][1], lng: position[0][0] });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get location error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function searchNearbyDrivers(req, res) {
+  const { lat, lng, radius = 5 } = req.query; // Default 5km radius
+
+  if (!lat || !lng) {
+    return res.status(400).json({ message: 'Missing location coordinates' });
+  }
+
+  try {
+    // Search within radius (unit: KM)
+    const nearby = await redis.geosearch(
+      KEYS.DRIVERS_LOCATIONS,
+      'FROMLONGLAT',
+      lng,
+      lat,
+      'BYRADIUS',
+      radius,
+      'KM',
+      'WITHCOORD'
+    );
+
+    // Map to a cleaner format
+    const drivers = nearby.map(([id, [long, lati]]) => ({
+      id,
+      lat: lati,
+      lng: long,
+      // Could add distance if needed using geodist
+    }));
+
+    res.json(drivers);
+  } catch (error) {
+    console.error('Search drivers error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function notifyDriver(req, res) {
+  const { id } = req.params;
+  const { tripId } = req.body;
+
+  if (!tripId) {
+    return res.status(400).json({ message: 'Missing tripId' });
+  }
+
+  try {
+    // Here you would implement actual notification logic
+    // For example: WebSocket, Push Notification, etc.
+    console.log(`🔔 Notifying driver ${id} of trip ${tripId}`);
+    
+    // For now, just acknowledge
+    res.json({ message: 'Notification sent' });
+  } catch (error) {
+    console.error('Notify driver error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
 
 export async function updateStatus(req, res) {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    if (!["online", "offline"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
-    const driver = await driverModel.updateDriverStatus(id, status);
-    if (!driver) {
-      return res.status(404).json({ error: "Driver not found" });
-    }
-    res.json({ status: driver.status });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
+  const { id } = req.params;
+  const { status } = req.body;
 
-export async function updateLocation(req, res) {
-  try {
-    const { id } = req.params;
-    const { latitude, longitude } = req.body;
-    if (!latitude || !longitude) {
-      return res.status(400).json({ error: "Latitude and longitude required" });
-    }
-    const driver = await driverModel.updateDriverLocation(id, latitude, longitude);
-    if (!driver) {
-      return res.status(404).json({ error: "Driver not found" });
-    }
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (req.user.role !== 'driver' || req.user.id != id) {
+    return res.status(403).json({ message: 'Unauthorized' });
   }
-}
 
-export async function searchDrivers(req, res) {
-  try {
-    const { lat, lng, radius = 5 } = req.query;
-    if (!lat || !lng) {
-      return res.status(400).json({ error: "Latitude and longitude required" });
-    }
-    const drivers = await driverModel.searchNearbyDrivers(
-      parseFloat(lat),
-      parseFloat(lng),
-      parseFloat(radius)
-    );
-    res.json(drivers);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (!['online', 'offline'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
   }
-}
 
-export async function getDriverTrips(req, res) {
   try {
-    const { id } = req.params;
-    const trips = await driverModel.getDriverTrips(id);
-    res.json(trips);
+    // Store driver status
+    await redis.set(`${KEYS.DRIVER_STATUS}${id}`, status);
+
+    if (status === 'offline') {
+      // Remove from locations when offline
+      await redis.zrem(KEYS.DRIVERS_LOCATIONS, id);
+    }
+
+    res.json({ message: `Status updated to ${status}` });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Update status error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
