@@ -1,0 +1,39 @@
+import { createTrip, getTripById, updateTripStatus, assignDriver } from "../models/tripModel.js";
+import { findNearestDriver } from "../services/driverAPI.js";
+import { TRIP_STATUS } from "../utils/constants.js";
+
+export async function createTripHandler(req, res) {
+  try {
+    const { passengerId, pickup, destination, pickupLat, pickupLng } = req.body;
+    if (!passengerId || !pickup || !destination || !pickupLat || !pickupLng)
+      return res.status(400).json({ message: "Missing fields" });
+
+    // Tính giá cước giả lập
+    const fare = Math.floor(Math.random() * 50 + 50) * 1000;
+
+    // Tạo chuyến đi mới
+    const trip = await createTrip(passengerId, pickup, destination, fare, TRIP_STATUS.SEARCHING);
+
+    // Gọi DriverService
+    const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5);
+    console.log("Nearby drivers:", nearbyDrivers);
+
+    if (nearbyDrivers.length > 0) {
+      const nearestDriver = nearbyDrivers[0];
+      const updatedTrip = await assignDriver(trip.id, nearestDriver.driverId);
+      return res.status(201).json({
+        message: "Trip created and driver assigned",
+        trip: updatedTrip,
+        driver: nearestDriver,
+      });
+    }
+
+    res.status(201).json({
+      message: "Trip created but no drivers nearby",
+      trip,
+    });
+  } catch (err) {
+    console.error("❌ createTripHandler error:", err);
+    res.status(500).json({ message: err.message });
+  }
+}
