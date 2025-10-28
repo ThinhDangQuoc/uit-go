@@ -8,64 +8,32 @@ export async function createTripHandler(req, res) {
     if (!passengerId || !pickup || !destination || !pickupLat || !pickupLng)
       return res.status(400).json({ message: "Missing fields" });
 
-    // Tính giá cước tạm (giả định)
+    // Tính giá cước giả lập
     const fare = Math.floor(Math.random() * 50 + 50) * 1000;
 
-    // Tạo chuyến (ban đầu ở trạng thái SEARCHING)
+    // Tạo chuyến đi mới
     const trip = await createTrip(passengerId, pickup, destination, fare, TRIP_STATUS.SEARCHING);
 
-    // Gọi DriverService để tìm tài xế gần nhất
-    const nearby = await findNearestDriver(pickupLat, pickupLng, 5);
+    // Gọi DriverService
+    const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5);
+    console.log("Nearby drivers:", nearbyDrivers);
 
-    if (nearby.length > 0) {
-      const nearestDriverId = nearby[0][0]; // Redis trả về [driverId, distance]
-      const updatedTrip = await assignDriver(trip.id, nearestDriverId);
-      res.status(201).json({ message: "Trip created and driver assigned", trip: updatedTrip });
-    } else {
-      res.status(201).json({ message: "Trip created but no drivers nearby", trip });
+    if (nearbyDrivers.length > 0) {
+      const nearestDriver = nearbyDrivers[0];
+      const updatedTrip = await assignDriver(trip.id, nearestDriver.driverId);
+      return res.status(201).json({
+        message: "Trip created and driver assigned",
+        trip: updatedTrip,
+        driver: nearestDriver,
+      });
     }
+
+    res.status(201).json({
+      message: "Trip created but no drivers nearby",
+      trip,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-}
-
-export async function getTripHandler(req, res) {
-  try {
-    const { id } = req.params;
-    const trip = await getTripById(id);
-    if (!trip) return res.status(404).json({ message: "Trip not found" });
-    res.json(trip);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-}
-
-export async function cancelTripHandler(req, res) {
-  try {
-    const { id } = req.params;
-    const trip = await getTripById(id);
-    if (!trip) return res.status(404).json({ message: "Trip not found" });
-    if (trip.status === TRIP_STATUS.COMPLETED)
-      return res.status(400).json({ message: "Trip already completed" });
-
-    const updated = await updateTripStatus(id, TRIP_STATUS.CANCELED);
-    res.json({ message: "Trip canceled", trip: updated });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-}
-
-export async function completeTripHandler(req, res) {
-  try {
-    const { id } = req.params;
-    const trip = await getTripById(id);
-    if (!trip) return res.status(404).json({ message: "Trip not found" });
-    if (trip.status !== TRIP_STATUS.ACCEPTED && trip.status !== TRIP_STATUS.IN_PROGRESS)
-      return res.status(400).json({ message: "Trip not active" });
-
-    const updated = await updateTripStatus(id, TRIP_STATUS.COMPLETED);
-    res.json({ message: "Trip completed", trip: updated });
-  } catch (err) {
+    console.error("❌ createTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }

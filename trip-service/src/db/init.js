@@ -2,17 +2,17 @@ import pool from "./db.js";
 
 export async function initDB() {
   const query = `
-  CREATE TABLE IF NOT EXISTS drivers (
+  CREATE TABLE IF NOT EXISTS trips (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    status VARCHAR(50) DEFAULT 'offline',
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
+    passenger_id INTEGER NOT NULL,
+    driver_id INTEGER,
+    pickup VARCHAR(255) NOT NULL,
+    destination VARCHAR(255) NOT NULL,
+    fare NUMERIC(10,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'searching',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   `;
   await pool.query(query);
-  console.log("✅ [driver-service] drivers table ready");
+  console.log("✅ [trip-service] trips table ready");
 }
