@@ -1,6 +1,7 @@
 import { createTrip, getTripById, updateTripStatus, assignDriver } from "../models/tripModel.js";
 import { findNearestDriver } from "../services/driverAPI.js";
 import { TRIP_STATUS } from "../utils/constants.js";
+import { createReview } from "../models/reviewModel.js";
 
 export async function createTripHandler(req, res) {
   try {
@@ -75,6 +76,32 @@ export async function completeTripHandler(req, res) {
     const updated = await updateTripStatus(id, TRIP_STATUS.COMPLETED);
     res.json({ message: "Trip completed", trip: updated });
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function reviewTripHandler(req, res) {
+  try {
+    const { id } = req.params; 
+    const { rating, comment } = req.body;
+    const passengerId = req.user?.id;
+
+    if (!rating || rating < 1 || rating > 5)
+      return res.status(400).json({ message: "Rating must be 1-5" });
+
+    const trip = await getTripById(id);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+
+    if (trip.status !== "completed")
+      return res.status(400).json({ message: "Trip must be completed to review" });
+
+    if (trip.passenger_id !== passengerId)
+      return res.status(403).json({ message: "You are not allowed to review this trip" });
+
+    const review = await createReview(trip.id, passengerId, trip.driver_id, rating, comment || "");
+    res.status(201).json({ message: "Review submitted", review });
+  } catch (err) {
+    console.error("reviewTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
