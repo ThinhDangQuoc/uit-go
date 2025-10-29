@@ -37,3 +37,44 @@ export async function createTripHandler(req, res) {
     res.status(500).json({ message: err.message });
   }
 }
+
+export async function getTripHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const trip = await getTripById(id);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+    res.json(trip);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function cancelTripHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const trip = await getTripById(id);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+    if (trip.status === TRIP_STATUS.COMPLETED)
+      return res.status(400).json({ message: "Trip already completed" });
+
+    const updated = await updateTripStatus(id, TRIP_STATUS.CANCELED);
+    res.json({ message: "Trip canceled", trip: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function completeTripHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const trip = await getTripById(id);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+    if (trip.status !== TRIP_STATUS.ACCEPTED && trip.status !== TRIP_STATUS.IN_PROGRESS)
+      return res.status(400).json({ message: "Trip not active" });
+
+    const updated = await updateTripStatus(id, TRIP_STATUS.COMPLETED);
+    res.json({ message: "Trip completed", trip: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
