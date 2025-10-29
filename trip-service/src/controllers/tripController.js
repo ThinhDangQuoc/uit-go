@@ -1,6 +1,7 @@
 import { createTrip, getTripById, updateTripStatus, assignDriver } from "../models/tripModel.js";
 import { findNearestDriver } from "../services/driverAPI.js";
 import { TRIP_STATUS } from "../utils/constants.js";
+import { createReview } from "../models/reviewModel.js";
 
 export async function createTripHandler(req, res) {
   try {
@@ -8,23 +9,32 @@ export async function createTripHandler(req, res) {
     if (!passengerId || !pickup || !destination || !pickupLat || !pickupLng)
       return res.status(400).json({ message: "Missing fields" });
 
-    // Tính giá cước tạm (giả định)
+    // Tính giá cước giả lập
     const fare = Math.floor(Math.random() * 50 + 50) * 1000;
 
-    // Tạo chuyến (ban đầu ở trạng thái SEARCHING)
+    // Tạo chuyến đi mới
     const trip = await createTrip(passengerId, pickup, destination, fare, TRIP_STATUS.SEARCHING);
 
-    // Gọi DriverService để tìm tài xế gần nhất
-    const nearby = await findNearestDriver(pickupLat, pickupLng, 5);
+    // Gọi DriverService
+    const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5);
+    console.log("Nearby drivers:", nearbyDrivers);
 
-    if (nearby.length > 0) {
-      const nearestDriverId = nearby[0][0]; // Redis trả về [driverId, distance]
-      const updatedTrip = await assignDriver(trip.id, nearestDriverId);
-      res.status(201).json({ message: "Trip created and driver assigned", trip: updatedTrip });
-    } else {
-      res.status(201).json({ message: "Trip created but no drivers nearby", trip });
+    if (nearbyDrivers.length > 0) {
+      const nearestDriver = nearbyDrivers[0];
+      const updatedTrip = await assignDriver(trip.id, nearestDriver.driverId);
+      return res.status(201).json({
+        message: "Trip created and driver assigned",
+        trip: updatedTrip,
+        driver: nearestDriver,
+      });
     }
+
+    res.status(201).json({
+      message: "Trip created but no drivers nearby",
+      trip,
+    });
   } catch (err) {
+    console.error("❌ createTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
@@ -66,6 +76,32 @@ export async function completeTripHandler(req, res) {
     const updated = await updateTripStatus(id, TRIP_STATUS.COMPLETED);
     res.json({ message: "Trip completed", trip: updated });
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function reviewTripHandler(req, res) {
+  try {
+    const { id } = req.params; 
+    const { rating, comment } = req.body;
+    const passengerId = req.user?.id;
+
+    if (!rating || rating < 1 || rating > 5)
+      return res.status(400).json({ message: "Rating must be 1-5" });
+
+    const trip = await getTripById(id);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+
+    if (trip.status !== "completed")
+      return res.status(400).json({ message: "Trip must be completed to review" });
+
+    if (trip.passenger_id !== passengerId)
+      return res.status(403).json({ message: "You are not allowed to review this trip" });
+
+    const review = await createReview(trip.id, passengerId, trip.driver_id, rating, comment || "");
+    res.status(201).json({ message: "Review submitted", review });
+  } catch (err) {
+    console.error("reviewTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
