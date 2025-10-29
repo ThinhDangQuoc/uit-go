@@ -1,10 +1,12 @@
 import pool from "../db/db.js";
 
 // Tạo user mới
-export async function createUser(email, password_hash, role) {
+export async function createUser(email, password_hash, role, personalInfo, vehicleInfo) {
   const res = await pool.query(
-    "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role",
-    [email, password_hash, role]
+    `INSERT INTO users (email, password_hash, role, personal_info, vehicle_info) 
+     VALUES ($1, $2, $3, $4, $5) 
+     RETURNING id, email, role, personal_info, vehicle_info`,
+    [email, password_hash, role, personalInfo || null, vehicleInfo || null]
   );
   return res.rows[0];
 }

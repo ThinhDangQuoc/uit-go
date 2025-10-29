@@ -1,8 +1,8 @@
 import express from "express";
 import cors from "cors";
-import driverRoutes from "./routes/driverRoutes.js";
 import dotenv from "dotenv";
-import { initDB } from "./db/init.js";
+import driverRoutes from "./routes/driverRoutes.js";
+import redis from "./utils/redis.js";
 
 dotenv.config();
 
@@ -11,8 +11,19 @@ app.use(cors());
 app.use(express.json());
 app.use("/api", driverRoutes);
 
-const PORT = process.env.PORT || 4001;
+const PORT = process.env.PORT;
+
+async function checkRedisConnection() {
+  try {
+    await redis.ping();
+    console.log('✅ Redis connection ready');
+  } catch (error) {
+    console.error('❌ Redis connection error:', error);
+    process.exit(1);
+  }
+}
+
 app.listen(PORT, async () => {
-    await initDB();
-    console.log(`🚗 DriverService running on port ${PORT}`);
+  await checkRedisConnection();
+  console.log(`🚗 DriverService running on port ${PORT}`);
 });

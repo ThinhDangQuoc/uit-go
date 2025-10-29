@@ -32,24 +32,6 @@ services:
       - uitgo-net
 
   # --- DRIVER SERVICE ---
-  driver-db:
-    image: postgres:15
-    container_name: driver-db
-    env_file:
-      - ./driver-service/.env
-    restart: always
-    ports:
-      - "5434:5432"
-    networks:
-      - uitgo-net
-    volumes:
-      - driver-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   driver-redis:
     image: redis:7
     container_name: driver-redis
@@ -67,8 +49,6 @@ services:
     ports:
       - "8082:8082"
     depends_on:
-      driver-db:
-        condition: service_healthy
       driver-redis:
         condition: service_started
     networks:
