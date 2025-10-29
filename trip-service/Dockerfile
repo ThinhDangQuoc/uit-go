@@ -8,7 +8,7 @@ RUN npm install
 
 # Copy source
 COPY src ./src
-COPY .env ./  # optional
+COPY .env ./
 
 EXPOSE 8083
 
