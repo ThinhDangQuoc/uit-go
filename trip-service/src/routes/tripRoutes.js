@@ -4,8 +4,7 @@ import {
   getTripHandler,
   cancelTripHandler,
   completeTripHandler,
-  reviewTripHandler,
-  getReviewsByDriverHandler
+  reviewTripHandler
 } from "../controllers/tripController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 

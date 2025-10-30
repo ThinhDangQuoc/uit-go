@@ -5,35 +5,58 @@ import { TRIP_STATUS } from "../utils/constants.js";
 export async function createTripHandler(req, res) {
   try {
     const { passengerId, pickup, destination, pickupLat, pickupLng } = req.body;
-    if (!passengerId || !pickup || !destination || !pickupLat || !pickupLng)
-      return res.status(400).json({ message: "Missing fields" });
 
-    // Tính giá cước giả lập
-    const fare = Math.floor(Math.random() * 50 + 50) * 1000;
+    const trip = await createTrip(passengerId, pickup, destination, 50000, TRIP_STATUS.SEARCHING);
 
-    // Tạo chuyến đi mới
-    const trip = await createTrip(passengerId, pickup, destination, fare, TRIP_STATUS.SEARCHING);
-
-    // Gọi DriverService
+    // Tìm tài xế gần nhất
     const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5);
-    console.log("Nearby drivers:", nearbyDrivers);
-
-    if (nearbyDrivers.length > 0) {
-      const nearestDriver = nearbyDrivers[0];
-      const updatedTrip = await assignDriver(trip.id, nearestDriver.driverId);
-      return res.status(201).json({
-        message: "Trip created and driver assigned",
-        trip: updatedTrip,
-        driver: nearestDriver,
-      });
+    if (!nearbyDrivers.length) {
+      return res.status(201).json({ message: "No drivers nearby", trip });
     }
 
+    const nearestDriver = nearbyDrivers[0];
+    console.log(`🚗 Notifying driver ${nearestDriver.id} for trip ${trip.id}`);
+
+    // Gửi thông báo qua socket
+    socket.emit("trip_request", {
+      driverId: nearestDriver.id,
+      tripId: trip.id,
+      pickup,
+      destination,
+    });
+
+    // Chờ phản hồi trong 15 giây
+    let accepted = false;
+    const timeout = setTimeout(async () => {
+      if (!accepted) {
+        console.log(`⌛ Driver ${nearestDriver.id} did not respond, resetting trip`);
+        await updateTripStatus(trip.id, TRIP_STATUS.SEARCHING);
+      }
+    }, 15000);
+
+    // Lắng nghe phản hồi từ driver-service
+    socket.on("driver_response", async (data) => {
+      if (data.tripId === trip.id && data.driverId === nearestDriver.id) {
+        clearTimeout(timeout);
+        if (data.status === "accepted") {
+          accepted = true;
+          await assignDriver(trip.id, nearestDriver.id);
+          await updateTripStatus(trip.id, TRIP_STATUS.ACCEPTED);
+          console.log(`✅ Driver ${data.driverId} accepted trip ${data.tripId}`);
+        } else {
+          console.log(`❌ Driver ${data.driverId} rejected trip ${data.tripId}`);
+          await updateTripStatus(trip.id, TRIP_STATUS.SEARCHING);
+        }
+      }
+    });
+
     res.status(201).json({
-      message: "Trip created but no drivers nearby",
+      message: "Trip created and driver notified",
       trip,
+      notifiedDriver: nearestDriver.id,
     });
   } catch (err) {
-    console.error("❌ createTripHandler error:", err);
+    console.error("createTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
