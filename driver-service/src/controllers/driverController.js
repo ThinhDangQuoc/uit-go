@@ -1,4 +1,7 @@
-import redis, { KEYS } from '../utils/redis.js';
+import axios from "axios";
+import redis, { KEYS } from "../utils/redis.js";
+
+const TRIP_SERVICE_URL = process.env.TRIP_SERVICE_URL;
 
 export async function updateLocation(req, res) {
   const { id } = req.params;
@@ -89,6 +92,59 @@ export async function notifyDriver(req, res) {
   } catch (error) {
     console.error('Notify driver error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function acceptTrip(req, res) {
+  const { id, tripId } = req.params; // driverId, tripId
+  try {
+    console.log(`✅ Driver ${id} accepted trip ${tripId}`);
+
+    // Lấy token từ request của client (tài xế)
+    const authHeader = req.headers.authorization;
+
+    await axios.post(
+      `${TRIP_SERVICE_URL}/trips/${tripId}/accept`,
+      { driverId: id },
+      {
+        headers: {
+          ...(authHeader ? { Authorization: authHeader } : {}),
+          "Content-Type": "application/json",
+        },
+        timeout: 5000,
+      }
+    );
+
+    res.json({ message: "Trip accepted successfully" });
+  } catch (err) {
+    console.error("Accept trip error:", err?.response?.data || err.message);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function rejectTrip(req, res) {
+  const { id, tripId } = req.params;
+  try {
+    console.log(`❌ Driver ${id} rejected trip ${tripId}`);
+
+    const authHeader = req.headers.authorization;
+
+    await axios.post(
+      `${TRIP_SERVICE_URL}/trips/${tripId}/reject`,
+      { driverId: id },
+      {
+        headers: {
+          ...(authHeader ? { Authorization: authHeader } : {}),
+          "Content-Type": "application/json",
+        },
+        timeout: 5000,
+      }
+    );
+
+    res.json({ message: "Trip rejected successfully" });
+  } catch (err) {
+    console.error("Reject trip error:", err?.response?.data || err.message);
+    res.status(500).json({ message: err.message });
   }
 }
 

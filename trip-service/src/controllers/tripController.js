@@ -1,3 +1,4 @@
+import axios from "axios";
 import { createTrip, getTripById, updateTripStatus, assignDriver, updateTripReview } from "../models/tripModel.js";
 import { findNearestDriver } from "../services/driverAPI.js";
 import { TRIP_STATUS } from "../utils/constants.js";
@@ -6,57 +7,45 @@ export async function createTripHandler(req, res) {
   try {
     const { passengerId, pickup, destination, pickupLat, pickupLng } = req.body;
 
-    const trip = await createTrip(passengerId, pickup, destination, 50000, TRIP_STATUS.SEARCHING);
+    const token = req.headers.authorization?.split(" ")[1];
+    const fare = Math.floor(Math.random() * 50 + 50) * 1000;
+    const trip = await createTrip(passengerId, pickup, destination, fare, TRIP_STATUS.SEARCHING);
 
     // Tìm tài xế gần nhất
-    const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5);
-    if (!nearbyDrivers.length) {
-      return res.status(201).json({ message: "No drivers nearby", trip });
-    }
+    const nearbyDrivers = await findNearestDriver(pickupLat, pickupLng, 5, token);
+    if (!nearbyDrivers.length)
+      return res.status(201).json({ message: "Trip created but no drivers nearby", trip });
 
     const nearestDriver = nearbyDrivers[0];
-    console.log(`🚗 Notifying driver ${nearestDriver.id} for trip ${trip.id}`);
+    const driverId = nearestDriver.id;
 
-    // Gửi thông báo qua socket
-    socket.emit("trip_request", {
-      driverId: nearestDriver.id,
-      tripId: trip.id,
-      pickup,
-      destination,
-    });
+    // Gửi thông báo đến driver-service
+    await axios.post(
+      `${process.env.DRIVER_SERVICE_URL}/drivers/${driverId}/notify`,
+      { tripId: trip.id },
+      {
+        headers: {
+          Authorization: req.headers.authorization, // chuyển token từ client
+        },
+      }
+    );
 
-    // Chờ phản hồi trong 15 giây
-    let accepted = false;
-    const timeout = setTimeout(async () => {
-      if (!accepted) {
-        console.log(`⌛ Driver ${nearestDriver.id} did not respond, resetting trip`);
-        await updateTripStatus(trip.id, TRIP_STATUS.SEARCHING);
+    // Thiết lập timeout 15 giây chờ phản hồi
+    setTimeout(async () => {
+      const currentTrip = await getTripById(trip.id);
+      if (currentTrip.status === TRIP_STATUS.SEARCHING) {
+        console.log(`⏰ Driver ${driverId} did not respond in time.`);
+        // tìm tài xế khác (tuỳ bạn)
       }
     }, 15000);
-
-    // Lắng nghe phản hồi từ driver-service
-    socket.on("driver_response", async (data) => {
-      if (data.tripId === trip.id && data.driverId === nearestDriver.id) {
-        clearTimeout(timeout);
-        if (data.status === "accepted") {
-          accepted = true;
-          await assignDriver(trip.id, nearestDriver.id);
-          await updateTripStatus(trip.id, TRIP_STATUS.ACCEPTED);
-          console.log(`✅ Driver ${data.driverId} accepted trip ${data.tripId}`);
-        } else {
-          console.log(`❌ Driver ${data.driverId} rejected trip ${data.tripId}`);
-          await updateTripStatus(trip.id, TRIP_STATUS.SEARCHING);
-        }
-      }
-    });
 
     res.status(201).json({
       message: "Trip created and driver notified",
       trip,
-      notifiedDriver: nearestDriver.id,
+      notifiedDriver: driverId,
     });
   } catch (err) {
-    console.error("createTripHandler error:", err);
+    console.error("❌ createTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
@@ -139,6 +128,46 @@ export async function getReviewsByDriverHandler(req, res) {
     res.json({ driverId, total: reviews.length, reviews });
   } catch (err) {
     console.error("getReviewsByDriverHandler error:", err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function acceptTripHandler(req, res) {
+  const { tripId } = req.params;
+  const { driverId } = req.body;
+
+  try {
+    const trip = await getTripById(tripId);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+
+    if (trip.status !== TRIP_STATUS.SEARCHING)
+      return res.status(400).json({ message: "Trip already accepted or canceled" });
+
+    const updated = await assignDriver(tripId, driverId);
+    await updateTripStatus(tripId, TRIP_STATUS.ACCEPTED);
+
+    res.json({ message: "Driver accepted trip", trip: updated });
+  } catch (err) {
+    console.error("acceptTripHandler error:", err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function rejectTripHandler(req, res) {
+  const { tripId } = req.params;
+  const { driverId } = req.body;
+
+  try {
+    const trip = await getTripById(tripId);
+    if (!trip) return res.status(404).json({ message: "Trip not found" });
+
+    if (trip.status !== TRIP_STATUS.SEARCHING)
+      return res.status(400).json({ message: "Trip already processed" });
+
+    console.log(`❌ Driver ${driverId} rejected trip ${tripId}`);
+    res.json({ message: "Driver rejected trip" });
+  } catch (err) {
+    console.error("rejectTripHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }

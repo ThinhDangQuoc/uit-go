@@ -11,8 +11,13 @@ router.get("/drivers/:id/location", authMiddleware, driverController.getLocation
 // Search nearby drivers
 router.get("/drivers/search", authMiddleware, driverController.searchNearbyDrivers);
 
-// Driver notifications
+// Notify driver of a new trip request
 router.post("/drivers/:id/notify", authMiddleware, driverController.notifyDriver);
+
+// Driver responses to trip requests
+router.post("/drivers/:id/trips/:tripId/accept", authMiddleware, driverController.acceptTrip);
+router.post("/drivers/:id/trips/:tripId/reject", authMiddleware, driverController.rejectTrip);
+
 
 // Driver status
 router.put("/drivers/:id/status", authMiddleware, driverController.updateStatus);
