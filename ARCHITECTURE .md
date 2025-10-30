@@ -18,33 +18,35 @@ Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách
 │   │   ├── middleware/        # Middleware xác thực JWT
 │   │   ├── db/                # Kết nối PostgreSQL và khởi tạo bảng
 │   │   └── routes/            # Định nghĩa các route API
+│   ├── .env                   # Biến môi trường của user-service
 │   ├── Dockerfile
 │   └── package.json
 │
-├── driver-service/            # Quản lý dữ liệu tài xế, theo dõi vị trí (Redis Geo)
+├── driver-service/            # Quản lý dữ liệu tài xế, xử lý logic nhận cuốc xe, theo dõi vị trí (Redis Geo)
 │   ├── src/
-│   │   ├── controllers/       # Đăng ký/cập nhật tài xế và tìm kiếm lân cận
+│   │   ├── controllers/       # Đăng ký, nhận/từ chối cuốc xe, vị trí
 │   │   ├── models/            # Truy vấn SQL cho tài xế
 │   │   ├── utils/             # Hàm tiện ích hỗ trợ Redis Geo
 │   │   ├── db/                # Khởi tạo PostgreSQL + Redis
-│   │   └── routes/            # Định nghĩa router Express
+│   │   └── routes/            # Định nghĩa router cho driver-service
+│   ├── .env                   # Biến môi trường của driver-service
 │   ├── Dockerfile
 │   └── package.json
 │
 ├── trip-service/              # Quản lý chuyến đi, gán tài xế, đánh giá
 │   ├── src/
-│   │   ├── controllers/       # Logic cốt lõi của chuyến đi + controller đánh giá
-│   │   ├── models/            # Model cho Trip và Review
+│   │   ├── controllers/       # Logic cốt lõi của chuyến đi, đánh giá
+│   │   ├── models/            # Model cho Trip 
 │   │   ├── services/          # Gọi Axios tới driver-service
 │   │   ├── middleware/        # Middleware xác thực JWT
 │   │   ├── utils/             # Hằng số và hàm hỗ trợ
 │   │   ├── db/                # Khởi tạo schema PostgreSQL
-│   │   └── routes/            # Các route Express cho chuyến đi
+│   │   └── routes/            # Định nghĩa đường dẫn dành cho trip
+│   ├── .env                   # Biến môi trường của trip-service
 │   ├── Dockerfile
 │   └── package.json
 │
 ├── docker-compose.yml          # Dàn dựng và chạy toàn bộ microservices
-├── .env                        # Biến môi trường chung
 ├── README.md                   # Tổng quan dự án
 └── ARCHITECTURE.md             # Tài liệu này
 ```
@@ -75,8 +77,10 @@ Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách
 2.Hành khách tạo chuyến đi → Trip Service lưu vào cơ sở dữ liệu.
 3.Trip Service gọi Driver Service qua REST API để tìm tài xế gần nhất (sử dụng Redis Geo).
 4.Chuyến đi được gán cho tài xế gần nhất.
-5.Khi chuyến đi hoàn tất → hành khách gửi đánh giá (yêu cầu JWT).
-6.Tất cả các service giao tiếp thông qua REST và chạy trong các container Docker.
+5.Khi nhận request, tài xế quyết định nhận/từ chối
+6.Hành khách có thể hủy chuyến hoặc tiếp tục 
+7.Khi chuyến đi hoàn tất → hành khách gửi đánh giá (yêu cầu JWT).
+8.Tất cả các service giao tiếp thông qua REST và chạy trong các container Docker.
 
 ---
 
@@ -95,19 +99,19 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 **Name:** User Authentication Service  
 **Description:** Xử lý đăng ký, đăng nhập, và lấy thông tin người dùng. Cấp phát JWT cho các service khác. 
 **Technologies:** Node.js (Express), PostgreSQL, JWT, bcrypt.js 
-**Deployment:** Docker container (cổng 8081 → nội bộ 4000)
+**Deployment:** Docker container 
 
 #### 3.2.2. Driver Service
 **Name:** Driver Location & Management Service  
 **Description:** Quản lý dữ liệu tài xế, trạng thái, và vị trí bằng Redis Geo.
-**Technologies:** Node.js (Express), PostgreSQL (optional), Redis (GeoSpatial)  
-**Deployment:** Docker container (cổng 8082 → nội bộ 4001)
+**Technologies:** Node.js (Express), JWT, Redis (GeoSpatial)  
+**Deployment:** Docker container
 
 #### 3.2.3. Trip Service
 **Name:** Trip Management Service  
 **Description:** Tạo và quản lý chuyến đi, gán tài xế và xử lý đánh giá hành khách.
 **Technologies:** Node.js (Express), Axios, PostgreSQL, JWT  
-**Deployment:** Docker container (cổng 8083 → nội bộ 4002)
+**Deployment:** Docker container
 
 ---
 
@@ -118,9 +122,26 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 **Purpose:** Lưu trữ lâu dài tài khoản người dùng, lịch sử chuyến đi và đánh giá.
 
 **Key Tables:**
-- `users` → Thông tin người dùng và vai trò
-- `trips` → passenger_id, driver_id, điểm đón, điểm đến, giá, trạng thái
-- `reviews` → trip_id, passenger_id, driver_id, điểm đánh giá, bình luận
+- `users` →
+id (SERIAL PRIMARY KEY) — id người dùng.
+email (VARCHAR(255), UNIQUE, NOT NULL) — Email dùng để đăng nhập.
+password_hash (VARCHAR(255), NOT NULL) — Hash mật khẩu 
+role (VARCHAR(50), NOT NULL) — Vai trò người dùng
+personal_info (JSONB) — Thông tin cá nhân mở rộng
+vehicle_info (JSONB) — Thông tin phương tiện
+created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo tài khoản.
+
+- `trips` →
+id (SERIAL PRIMARY KEY) — Khóa chính chuyến đi.
+passenger_id (INTEGER NOT NULL) — Tham chiếu tới users.id của hành khách.
+driver_id (INTEGER) — Tham chiếu tới users.id của tài xế 
+pickup (VARCHAR(255) NOT NULL) — Địa điểm đón 
+destination (VARCHAR(255) NOT NULL) — Địa điểm trả khách.
+fare (NUMERIC(10,2) NOT NULL) — Giá tiền chuyến đi.
+status (VARCHAR(50) DEFAULT 'searching') — Trạng thái chuyến 
+rating (INTEGER CHECK (rating BETWEEN 1 AND 5)) — Điểm đánh giá chuyến
+comment (TEXT) — Bình luận/đánh giá kèm theo.
+created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuyến.
 
 ### 4.2. Redis (Driver Service)
 **Type:** CSDL trong bộ nhớ, có chỉ mục không gian địa lý (GeoSpatial)
@@ -130,18 +151,7 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 
 ---
 
-## 5. External Integrations / APIs
-
-| Service | Purpose | Integration Method |
-|----------|----------|--------------------|
-| Driver Service | Tìm tài xế gần nhất | REST API nội bộ (Axios) |
-| User Service | Xác thực & cấp JWT | REST API nội bộ |
-| PostgreSQL | Lưu trữ dữ liệu quan hệ | pg (node-postgres) |
-| Redis | Dữ liệu định vị | ioredis (Geo API) |
-
----
-
-## 6. Deployment & Infrastructure
+## 5. Deployment & Infrastructure
 
 **Cloud Provider:** Docker (phát triển cục bộ), có thể mở rộng lên Render, AWS hoặc GCP.
 
@@ -155,7 +165,7 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 
 ---
 
-## 7. Security Considerations
+## 6. Security Considerations
 
 - **Authentication:** JWT (HMAC SHA256).  
 - **Authorization:** Middleware kiểm tra JWT cho các route bảo vệ (/api/trips/:id/review)
@@ -165,22 +175,23 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 
 ---
 
-## 8. Development & Testing Environment
+## 7. Development & Testing Environment
 
 **Local Setup:**
 ```bash
-git clone https://github.com/<your-repo>/uit-go.git
+git clone https://github.com/ThinhDangQuoc/uit-go.git
 cd uit-go
 docker compose up --build
 ```
 
-**Testing:** Thủ công bằng Postman hoặc test tích hợp (tương lai với Jest).
+**Testing:** Thủ công bằng Postman hoặc test tích hợp trong tương lai với Jest.
 **Code Quality:** Sử dụng ESLint và Prettier cho Node.js.
 
 ---
 
 ## 9. Future Considerations / Roadmap
 
+Thiết kế Kiến trúc cho Scalability & Performance
 ---
 
 ## 10. Project Identification
@@ -188,9 +199,8 @@ docker compose up --build
 | Field | Value |
 |-------|--------|
 | **Project Name** | UIT-Go |
-| **Repository URL** | *(to be added)* |
 | **Primary Contact** | Hồ Nhật Thành - Đặng Quốc Thịnh - Tạ Ngọc Thành |
-| **Team / Course** | SE360 - Computer Science (UIT) |
+| **Team / Course** | SE360 - Software Engineering (UIT) |
 | **Date of Last Update** | 2025-10-29 |
 
 ---
