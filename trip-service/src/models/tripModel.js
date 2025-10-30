@@ -30,3 +30,14 @@ export async function assignDriver(tripId, driverId) {
   );
   return res.rows[0];
 }
+
+export async function updateTripReview(tripId, rating, comment) {
+  const res = await pool.query(
+    `UPDATE trips
+     SET rating = $1, comment = $2
+     WHERE id = $3
+     RETURNING *`,
+    [rating, comment, tripId]
+  );
+  return res.rows[0];
+}

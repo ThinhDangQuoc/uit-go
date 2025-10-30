@@ -4,8 +4,9 @@ import {
   getTripHandler,
   cancelTripHandler,
   completeTripHandler,
+  reviewTripHandler,
+  getReviewsByDriverHandler
 } from "../controllers/tripController.js";
-import { reviewTripHandler } from "../controllers/reviewController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();

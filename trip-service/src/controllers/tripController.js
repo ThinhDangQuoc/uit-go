@@ -1,7 +1,6 @@
-import { createTrip, getTripById, updateTripStatus, assignDriver } from "../models/tripModel.js";
+import { createTrip, getTripById, updateTripStatus, assignDriver, updateTripReview } from "../models/tripModel.js";
 import { findNearestDriver } from "../services/driverAPI.js";
 import { TRIP_STATUS } from "../utils/constants.js";
-import { createReview } from "../models/reviewModel.js";
 
 export async function createTripHandler(req, res) {
   try {
@@ -82,12 +81,12 @@ export async function completeTripHandler(req, res) {
 
 export async function reviewTripHandler(req, res) {
   try {
-    const { id } = req.params; 
+    const { id } = req.params; // trip id
     const { rating, comment } = req.body;
     const passengerId = req.user?.id;
 
     if (!rating || rating < 1 || rating > 5)
-      return res.status(400).json({ message: "Rating must be 1-5" });
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
 
     const trip = await getTripById(id);
     if (!trip) return res.status(404).json({ message: "Trip not found" });
@@ -98,10 +97,25 @@ export async function reviewTripHandler(req, res) {
     if (trip.passenger_id !== passengerId)
       return res.status(403).json({ message: "You are not allowed to review this trip" });
 
-    const review = await createReview(trip.id, passengerId, trip.driver_id, rating, comment || "");
-    res.status(201).json({ message: "Review submitted", review });
+    const updated = await updateTripReview(trip.id, rating, comment || "");
+    res.status(201).json({ message: "Review submitted", trip: updated });
   } catch (err) {
     console.error("reviewTripHandler error:", err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function getReviewsByDriverHandler(req, res) {
+  try {
+    const { driverId } = req.params;
+    const reviews = await getReviewsByDriver(driverId);
+
+    if (!reviews.length)
+      return res.status(404).json({ message: "No reviews found for this driver" });
+
+    res.json({ driverId, total: reviews.length, reviews });
+  } catch (err) {
+    console.error("getReviewsByDriverHandler error:", err);
     res.status(500).json({ message: err.message });
   }
 }
