@@ -130,12 +130,19 @@ Dữ liệu vị trí tài xế lưu trong **Redis GEO**, mỗi service có **da
 
 ### Data Flow Summary:
 1.Hành khách đăng ký / đăng nhập → User Service phát hành JWT.
+
 2.Hành khách tạo chuyến đi → Trip Service lưu vào cơ sở dữ liệu.
+
 3.Trip Service gọi Driver Service qua REST API để tìm tài xế gần nhất (sử dụng Redis Geo).
+
 4.Chuyến đi được gán cho tài xế gần nhất.
+
 5.Khi nhận request, tài xế quyết định nhận/từ chối
+
 6.Hành khách có thể hủy chuyến hoặc tiếp tục 
+
 7.Khi chuyến đi hoàn tất → hành khách gửi đánh giá (yêu cầu JWT).
+
 8.Tất cả các service giao tiếp thông qua REST và chạy trong các container Docker.
 
 ---
