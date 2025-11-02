@@ -11,7 +11,7 @@ export async function createTripHandler(req, res) {
     // Lấy token từ header Authorization
     const token = req.headers.authorization?.split(" ")[1];
 
-    // Tạo giá tiền ngẫu nhiên (từ 50.000 đến 100.000)
+    // Tạo giá tiền (từ 50.000 đến 100.000)
     const fare = Math.floor(Math.random() * 50 + 50) * 1000;
 
     // Tạo bản ghi chuyến đi trong cơ sở dữ liệu
