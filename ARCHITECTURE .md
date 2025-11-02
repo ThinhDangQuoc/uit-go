@@ -5,7 +5,7 @@ Mục tiêu của tài liệu là giúp các thành viên đóng góp nhanh chó
 
 ---
 
-## 1. Project Structure
+## 1. Cấu trúc dự án (Project Structure)
 
 Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách tổ chức theo các tầng kiến trúc.
 
@@ -53,24 +53,80 @@ Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách
 
 ---
 
-## 2. High-Level System Diagram
+## 2. Sơ đồ tổng quan hệ thống (High-Level System Diagram)
+```
+   +---------------------+
+   |       Người dùng    |
+   | (Passenger / Driver)|
+   +---------+-----------+
+             |
+             v
+   +---------------------+          +---------------------+
+   |  Trip Service       |<-------->|  Driver Service     |
+   |  (Điều phối chuyến) |          |  (Định vị + phản hồi)|
+   +---------------------+          +---------------------+
+             ^
+             |
+   +---------------------+
+   |  User Service       |
+   | (Đăng ký / đăng nhập)|
+   +---------------------+
 
+   [PostgreSQL] mỗi service  |
+   [Redis Geospatial] cho vị trí tài xế
 ```
-[ User (Passenger) ]
-         │
-         ▼
- [ User Service ]  ←→  [ PostgreSQL ]
-         │
- (JWT Token)
-         │
-         ▼
- [ Trip Service ]  ←→  [ PostgreSQL ]
-         │
- (Axios REST API)
-         │
-         ▼
- [ Driver Service ]  ←→  [ Redis (Geo) ]
-```
+
+Các service giao tiếp **qua REST API** bằng Axios.  
+Dữ liệu vị trí tài xế lưu trong **Redis GEO**, mỗi service có **database riêng biệt**.
+
+---
+
+## 3. Luồng dữ liệu chi tiết (Data Flow)
+
+### A. Đăng ký & xác thực người dùng
+1. Passenger gửi `POST /users` → UserService tạo user (PostgreSQL).  
+2. Gửi `POST /sessions` → Nhận JWT token.  
+3. Token được dùng cho mọi API khác.  
+
+**Luồng:** Client ↔ UserService ↔ PostgreSQL(users).
+
+---
+
+### B. Tài xế bật online & cập nhật vị trí
+1. Driver gửi `PUT /drivers/:id/status` → status = “online”.  
+2. Gửi `PUT /drivers/:id/location` → Redis GEOADD lưu (lat,lng).  
+
+**Luồng:** Driver ↔ DriverService ↔ Redis(drivers_locations).
+
+---
+
+### C. Hành khách đặt chuyến
+1. Passenger gửi `POST /trips` → TripService lưu chuyến trong PostgreSQL.  
+2. TripService gọi `driver-service/drivers/search` để tìm tài xế gần nhất.  
+3. Gửi `POST /drivers/:id/notify` đến driver.  
+4. Chờ phản hồi (15s timeout).  
+
+**Luồng:** Passenger → TripService → DriverService → Redis → PostgreSQL(trips).
+
+---
+
+### D. Tài xế phản hồi chuyến
+1. Driver gửi `POST /drivers/:id/trips/:tripId/accept`.  
+2. DriverService gọi `trip-service/trips/:tripId/accept`.  
+3. TripService cập nhật trạng thái “accepted”.  
+
+**Luồng:** Driver ↔ DriverService ↔ TripService ↔ PostgreSQL(trips).
+
+---
+
+### E. Hoàn thành & đánh giá chuyến đi
+1. Passenger gửi `POST /trips/:id/complete`.  
+2. TripService cập nhật `status=completed`.  
+3. Passenger gửi `POST /trips/:id/review` (rating/comment).  
+
+**Luồng:** Passenger ↔ TripService ↔ PostgreSQL(trips).
+
+---
 
 ### Data Flow Summary:
 1.Hành khách đăng ký / đăng nhập → User Service phát hành JWT.
@@ -84,40 +140,56 @@ Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách
 
 ---
 
-## 3. Core Components
+## 4. Core Components
 
-### 3.1. Frontend
+### 4.1. Frontend
 **(Dự kiến phát triển trong tương lai)**  
 Một dashboard web hoặc ứng dụng di động sẽ tiêu thụ các API từ backend.
 Công nghệ đề xuất: React.js hoặc Flutter.
 
 ---
 
-### 3.2. Backend Services
+### 4.2. Backend Services
 
-#### 3.2.1. User Service
-**Name:** User Authentication Service  
-**Description:** Xử lý đăng ký, đăng nhập, và lấy thông tin người dùng. Cấp phát JWT cho các service khác. 
-**Technologies:** Node.js (Express), PostgreSQL, JWT, bcrypt.js 
-**Deployment:** Docker container 
+#### 4.2.1. User Service
+**Chức năng:**  
+- Quản lý người dùng (hành khách, tài xế).  
+- Đăng ký, đăng nhập, lấy thông tin cá nhân.  
+- Sinh **JWT Token** thống nhất cho toàn hệ thống.  
 
-#### 3.2.2. Driver Service
-**Name:** Driver Location & Management Service  
-**Description:** Quản lý dữ liệu tài xế, trạng thái, và vị trí bằng Redis Geo.
-**Technologies:** Node.js (Express), JWT, Redis (GeoSpatial)  
-**Deployment:** Docker container
-
-#### 3.2.3. Trip Service
-**Name:** Trip Management Service  
-**Description:** Tạo và quản lý chuyến đi, gán tài xế và xử lý đánh giá hành khách.
-**Technologies:** Node.js (Express), Axios, PostgreSQL, JWT  
-**Deployment:** Docker container
+**Công nghệ:** Node.js (Express), PostgreSQL, bcrypt, JWT.  
+**Triển khai:** Docker container `user-service` (cổng 8081).  
 
 ---
 
-## 4. Data Stores
+#### 4.2.2. Driver Service
+**Chức năng:**  
+- Quản lý tài xế, vị trí và trạng thái online/offline.  
+- Cập nhật vị trí bằng Redis GEOADD.  
+- Hỗ trợ phản hồi accept/reject chuyến đi.  
 
-### 4.1. PostgreSQL (User & Trip Services)
+**Công nghệ:** Node.js (Express), Redis (ioredis), Socket.IO.  
+**Triển khai:** Docker container `driver-service` (cổng 8082).  
+
+---
+
+#### 4.2.3. Trip Service
+**Chức năng:**  
+- Là **trung tâm điều phối** giữa hành khách và tài xế.  
+- Khi hành khách đặt xe:
+  1. Lưu chuyến đi vào PostgreSQL.
+  2. Gọi `driver-service` tìm tài xế gần nhất (qua Redis).
+  3. Gửi thông báo đến tài xế.
+  4. Cập nhật trạng thái chuyến.
+
+**Công nghệ:** Node.js (Express), PostgreSQL, Axios.  
+**Triển khai:** Docker container `trip-service` (cổng 8083).  
+
+---
+
+## 5. Data Stores
+
+### 5.1. PostgreSQL (User & Trip Services)
 **Type:** Relational Database  
 **Purpose:** Lưu trữ lâu dài tài khoản người dùng, lịch sử chuyến đi và đánh giá.
 
@@ -143,7 +215,7 @@ rating (INTEGER CHECK (rating BETWEEN 1 AND 5)) — Điểm đánh giá chuyến
 comment (TEXT) — Bình luận/đánh giá kèm theo.
 created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuyến.
 
-### 4.2. Redis (Driver Service)
+### 5.2. Redis (Driver Service)
 **Type:** CSDL trong bộ nhớ, có chỉ mục không gian địa lý (GeoSpatial)
 **Purpose:** Lưu và truy vấn vị trí tài xế nhanh chóng.
 **Key Data Structures:**  
@@ -151,7 +223,7 @@ created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuy�
 
 ---
 
-## 5. Deployment & Infrastructure
+## 6. Deployment & Infrastructure
 
 **Cloud Provider:** Docker (phát triển cục bộ), có thể mở rộng lên Render, AWS hoặc GCP.
 
@@ -165,7 +237,7 @@ created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuy�
 
 ---
 
-## 6. Security Considerations
+## 7. Security Considerations
 
 - **Authentication:** JWT (HMAC SHA256).  
 - **Authorization:** Middleware kiểm tra JWT cho các route bảo vệ (/api/trips/:id/review)
@@ -175,7 +247,7 @@ created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuy�
 
 ---
 
-## 7. Development & Testing Environment
+## 8. Development & Testing Environment
 
 **Local Setup:**
 ```bash
