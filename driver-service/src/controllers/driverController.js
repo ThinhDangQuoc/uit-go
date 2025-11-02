@@ -3,9 +3,7 @@ import redis, { KEYS } from "../utils/redis.js";
 
 const TRIP_SERVICE_URL = process.env.TRIP_SERVICE_URL;
 
-/**
- * Cập nhật vị trí hiện tại của tài xế trong Redis thông qua GEO API.
- */
+//Cập nhật vị trí hiện tại của tài xế trong Redis thông qua GEO API.
 export async function updateLocation(req, res) {
   const { id } = req.params;
   const { lat, lng } = req.body;
