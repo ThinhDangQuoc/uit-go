@@ -72,8 +72,8 @@ Phần này mô tả tổng quan cấp cao về cấu trúc thư mục và cách
    | (Đăng ký / đăng nhập)|
    +---------------------+
 
-   [PostgreSQL] mỗi service  |
-   [Redis Geospatial] cho vị trí tài xế
+   [PostgreSQL] User Service và Trip Service  |
+   [Redis Geospatial] Driver service
 ```
 
 Các service giao tiếp **qua REST API** bằng Axios.  
