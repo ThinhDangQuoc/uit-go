@@ -203,23 +203,38 @@ Công nghệ đề xuất: React.js hoặc Flutter.
 **Key Tables:**
 - `users` →
 id (SERIAL PRIMARY KEY) — id người dùng.
+
 email (VARCHAR(255), UNIQUE, NOT NULL) — Email dùng để đăng nhập.
+
 password_hash (VARCHAR(255), NOT NULL) — Hash mật khẩu 
+
 role (VARCHAR(50), NOT NULL) — Vai trò người dùng
+
 personal_info (JSONB) — Thông tin cá nhân mở rộng
+
 vehicle_info (JSONB) — Thông tin phương tiện
+
 created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo tài khoản.
 
 - `trips` →
 id (SERIAL PRIMARY KEY) — Khóa chính chuyến đi.
+
 passenger_id (INTEGER NOT NULL) — Tham chiếu tới users.id của hành khách.
+
 driver_id (INTEGER) — Tham chiếu tới users.id của tài xế 
+
 pickup (VARCHAR(255) NOT NULL) — Địa điểm đón 
+
 destination (VARCHAR(255) NOT NULL) — Địa điểm trả khách.
+
 fare (NUMERIC(10,2) NOT NULL) — Giá tiền chuyến đi.
+
 status (VARCHAR(50) DEFAULT 'searching') — Trạng thái chuyến 
+
 rating (INTEGER CHECK (rating BETWEEN 1 AND 5)) — Điểm đánh giá chuyến
+
 comment (TEXT) — Bình luận/đánh giá kèm theo.
+
 created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) — Thời điểm tạo chuyến.
 
 ### 5.2. Redis (Driver Service)
