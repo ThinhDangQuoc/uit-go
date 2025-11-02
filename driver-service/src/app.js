@@ -1,6 +1,8 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import http from "http";
+import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
 import driverRoutes from "./routes/driverRoutes.js";
@@ -16,8 +18,36 @@ app.use(express.json());
 app.use("/api", driverRoutes);
 
 const PORT = process.env.PORT;
+const server = http.createServer(app);
 
-// ✅ Kiểm tra Redis trước khi chạy server
+// ✅ Khởi tạo Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: "*", // hoặc domain frontend của bạn
+    methods: ["GET", "POST"]
+  }
+});
+
+io.on("connection", (socket) => {
+  console.log(`🚘 Driver connected: ${socket.id}`);
+
+  // 📡 Driver gửi vị trí mỗi vài giây
+  socket.on("driverLocationUpdate", async ({ driverId, lat, lng }) => {
+    try {
+      await redis.geoadd("drivers_locations", lng, lat, driverId);
+      io.emit("driverLocationBroadcast", { driverId, lat, lng }); // Gửi cho mọi passenger
+      console.log(`📍 Updated location for driver ${driverId}: ${lat}, ${lng}`);
+    } catch (err) {
+      console.error("Redis GEOADD error:", err.message);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`❌ Driver disconnected: ${socket.id}`);
+  });
+});
+
+// Kiểm tra kết nối Redis trước khi khởi động server
 async function checkRedisConnection() {
   try {
     await redis.ping();
