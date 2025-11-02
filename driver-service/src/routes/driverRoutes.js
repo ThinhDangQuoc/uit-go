@@ -4,22 +4,21 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Location updates - requires authentication
+// Cập nhật và truy xuất vị trí tài xế
 router.put("/drivers/:id/location", authMiddleware, driverController.updateLocation);
 router.get("/drivers/:id/location", authMiddleware, driverController.getLocation);
 
-// Search nearby drivers
+// Tìm tài xế gần vị trí chỉ định
 router.get("/drivers/search", authMiddleware, driverController.searchNearbyDrivers);
 
-// Notify driver of a new trip request
+// Gửi thông báo chuyến đi mới đến tài xế
 router.post("/drivers/:id/notify", authMiddleware, driverController.notifyDriver);
 
-// Driver responses to trip requests
+// Tài xế chấp nhận hoặc từ chối chuyến đi
 router.post("/drivers/:id/trips/:tripId/accept", authMiddleware, driverController.acceptTrip);
 router.post("/drivers/:id/trips/:tripId/reject", authMiddleware, driverController.rejectTrip);
 
-
-// Driver status
+// Cập nhật trạng thái hoạt động của tài xế
 router.put("/drivers/:id/status", authMiddleware, driverController.updateStatus);
 
 export default router;

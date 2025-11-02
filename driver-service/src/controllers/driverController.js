@@ -3,21 +3,24 @@ import redis, { KEYS } from "../utils/redis.js";
 
 const TRIP_SERVICE_URL = process.env.TRIP_SERVICE_URL;
 
+/**
+ * Cập nhật vị trí hiện tại của tài xế trong Redis thông qua GEO API.
+ */
 export async function updateLocation(req, res) {
   const { id } = req.params;
   const { lat, lng } = req.body;
 
-  // Verify driver owns this location update
+  // Xác thực quyền truy cập: chỉ tài xế có ID trùng với token mới được phép cập nhật
   if (req.user.role !== 'driver' || req.user.id != id) {
     return res.status(403).json({ message: 'Unauthorized' });
   }
-  
+
   if (!lat || !lng) {
     return res.status(400).json({ message: 'Missing location coordinates' });
   }
 
   try {
-    // Store in Redis geospatial
+    // Lưu vị trí tài xế vào Redis bằng cấu trúc GEO (geoadd)
     await redis.geoadd(KEYS.DRIVERS_LOCATIONS, lng, lat, id);
     res.json({ message: 'Location updated' });
   } catch (error) {
@@ -26,6 +29,7 @@ export async function updateLocation(req, res) {
   }
 }
 
+//Lấy vị trí hiện tại của một tài xế dựa trên ID.
 export async function getLocation(req, res) {
   const { id } = req.params;
 
@@ -41,30 +45,30 @@ export async function getLocation(req, res) {
   }
 }
 
+//Tìm kiếm các tài xế gần một vị trí nhất định trong bán kính cho trước.
 export async function searchNearbyDrivers(req, res) {
-  const { lat, lng, radius = 5 } = req.query; // Default 5km radius
+  const { lat, lng, radius = 5 } = req.query; // Mặc định bán kính 5 km
 
   if (!lat || !lng) {
     return res.status(400).json({ message: 'Missing location coordinates' });
   }
 
   try {
-    // Redis GEO radius search
+    // Truy vấn các tài xế trong phạm vi bán kính bằng Redis GEO
     const nearby = await redis.georadius(
-      KEYS.DRIVERS_LOCATIONS, // key
-      lng,                    // longitude
-      lat,                    // latitude
-      radius,                 // radius value
-      'km',                   // unit
-      'WITHCOORD'             // include coordinates
+      KEYS.DRIVERS_LOCATIONS,
+      lng,
+      lat,
+      radius,
+      'km',
+      'WITHCOORD'
     );
 
-    // Map to a cleaner format
+    // Chuẩn hóa dữ liệu đầu ra
     const drivers = nearby.map(([id, [long, lati]]) => ({
       id,
       lat: lati,
       lng: long,
-      // Could add distance if needed using geodist
     }));
 
     res.json(drivers);
@@ -74,6 +78,9 @@ export async function searchNearbyDrivers(req, res) {
   }
 }
 
+/**
+ * Gửi thông báo tới tài xế khi có chuyến đi mới (hiện mô phỏng bằng console log).
+ */
 export async function notifyDriver(req, res) {
   const { id } = req.params;
   const { tripId } = req.body;
@@ -83,11 +90,8 @@ export async function notifyDriver(req, res) {
   }
 
   try {
-    // Here you would implement actual notification logic
-    // For example: WebSocket, Push Notification, etc.
-    console.log(`🔔 Notifying driver ${id} of trip ${tripId}`);
-    
-    // For now, just acknowledge
+    // Trong hệ thống thực, sẽ dùng WebSocket hoặc Push Notification.
+    console.log(`Notifying driver ${id} of trip ${tripId}`);
     res.json({ message: 'Notification sent' });
   } catch (error) {
     console.error('Notify driver error:', error);
@@ -95,12 +99,14 @@ export async function notifyDriver(req, res) {
   }
 }
 
+/**
+ * Tài xế chấp nhận chuyến đi — gọi sang TripService để cập nhật trạng thái.
+ */
 export async function acceptTrip(req, res) {
   const { id, tripId } = req.params; // driverId, tripId
   try {
-    console.log(`✅ Driver ${id} accepted trip ${tripId}`);
+    console.log(`Driver ${id} accepted trip ${tripId}`);
 
-    // Lấy token từ request của client (tài xế)
     const authHeader = req.headers.authorization;
 
     await axios.post(
@@ -122,10 +128,13 @@ export async function acceptTrip(req, res) {
   }
 }
 
+/**
+ * Tài xế từ chối chuyến đi — cũng gọi sang TripService để cập nhật.
+ */
 export async function rejectTrip(req, res) {
   const { id, tripId } = req.params;
   try {
-    console.log(`❌ Driver ${id} rejected trip ${tripId}`);
+    console.log(`Driver ${id} rejected trip ${tripId}`);
 
     const authHeader = req.headers.authorization;
 
@@ -148,6 +157,10 @@ export async function rejectTrip(req, res) {
   }
 }
 
+/**
+ * Cập nhật trạng thái hoạt động của tài xế (online/offline).
+ * Khi offline, tài xế bị loại khỏi danh sách vị trí đang hoạt động.
+ */
 export async function updateStatus(req, res) {
   const { id } = req.params;
   const { status } = req.body;
@@ -161,11 +174,11 @@ export async function updateStatus(req, res) {
   }
 
   try {
-    // Store driver status
+    // Lưu trạng thái hoạt động vào Redis
     await redis.set(`${KEYS.DRIVER_STATUS}${id}`, status);
 
+    // Nếu offline, xóa khỏi danh sách vị trí
     if (status === 'offline') {
-      // Remove from locations when offline
       await redis.zrem(KEYS.DRIVERS_LOCATIONS, id);
     }
 
